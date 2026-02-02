@@ -1,0 +1,90 @@
+############################
+# Python bytecode / cache
+############################
+__pycache__/
+*.py[cod]
+*$py.class
+
+############################
+# Virtual environments
+############################
+venv/
+.venv/
+env/
+ENV/
+.ENV/
+
+############################
+# Environment / secrets
+############################
+.env
+.env.*
+*.env
+
+############################
+# Logs and runtime outputs
+############################
+logs/
+runs/
+output/
+outputs/
+tmp/
+temp/
+
+############################
+# Images / video frames
+############################
+frames/
+images/
+*.jpg
+*.png
+*.mp4
+*.avi
+
+############################
+# Model artifacts
+############################
+*.pt
+*.pth
+*.onnx
+*.ckpt
+*.h5
+*.pkl
+
+############################
+# Jupyter / experiments
+############################
+.ipynb_checkpoints/
+*.ipynb
+
+############################
+# OS / editor clutter
+############################
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+############################
+# Test / debug artifacts
+############################
+coverage/
+.coverage
+htmlcov/
+pytest_cache/
+
+############################
+# Build / packaging
+############################
+build/
+dist/
+*.egg-info/
+
+############################
+# Optional: keep empty dirs
+############################
+# Uncomment if needed:
+# !logs/.gitkeep
+# !runs/.gitkeep
