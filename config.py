@@ -9,11 +9,26 @@ class Config:
     initial_stream_conf: float = 0.5
     initial_map_conf: float = 0.35
 
-    runs_dir: str = "runs"       # base folder for runs
-    scan_trigger_name: str = "SCAN_NOW"  # manual trigger file name
-    
-    scan_enter_thresh = 0.30
-    scan_exit_thresh = 0.60
-    scan_step_degrees = 90
-    scan_pause_s = 1.0
-    scan_max_episodes = 2
+    runs_dir: str = "runs"
+    scan_trigger_name: str = "SCAN_NOW"
+
+    # Scan policy params
+    scan_enter_thresh: float = 0.30
+    scan_exit_thresh: float = 0.60
+    scan_step_degrees: int = 90
+    scan_pause_s: float = 1.0
+    scan_max_episodes: int = 2
+
+    # L298N pins (BCM)
+    L_IN1: int = 17
+    L_IN2: int = 22
+    L_ENA: int = 10
+    R_IN3: int = 24
+    R_IN4: int = 23
+    R_ENB: int = 25
+
+    # Turning calibration
+    turn_speed: float = 0.5
+    turn_seconds_per_degree: float = 0.012
+    min_pwm: float = 0.30
+    max_turn_time_s: float = 2.0

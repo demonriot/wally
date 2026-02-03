@@ -16,5 +16,6 @@ class AgentState:
     frame_folder: str = ""
     log_path: str = ""
     scan_trigger_path: str = ""
-    scan_rt = None
-
+    scan_rt : object = None
+    motors_enabled: bool = True
+    #last_turn_command_time: float = 0.0
