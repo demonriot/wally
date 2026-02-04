@@ -18,6 +18,8 @@ class Config:
     scan_step_degrees: int = 90
     scan_pause_s: float = 1.0
     scan_max_episodes: int = 2
+    scan_settle_s: float = 0.25
+    scan_flush_s: float = 0.25
 
     # L298N pins (BCM)
     L_IN1: int = 17
@@ -32,3 +34,8 @@ class Config:
     turn_seconds_per_degree: float = 0.012
     min_pwm: float = 0.30
     max_turn_time_s: float = 2.0
+
+    # Perception params
+    diff_resize_w: int = 160
+    diff_resize_h: int = 120
+    diff_blur_ksize: int = 3

@@ -107,7 +107,7 @@ def run(cfg: Config, mc):
             if state.mode == "observe":
                 observe.step(state, now_t, cfg)
             elif state.mode == "scan":
-                next_mode = scan.step(state, now_t, cfg, rotate_fn=rotate_fn)
+                next_mode = scan.step(state, now_t, cfg, rotate_fn=rotate_fn, sample_frame_fn=lambda: cam.read_latest(cfg.scan_flush_s))
                 if next_mode is not None and next_mode != state.mode:
                     switch_mode(state, now_t, cfg, next_mode, mc)
 
@@ -121,7 +121,7 @@ def run(cfg: Config, mc):
 
 
 if __name__ == "__main__":
-    cfg = Config(rtsp_url="rtsp://192.168.0.113:8080/h264_ulaw.sdp")
+    cfg = Config(rtsp_url="rtsp://10.25.113.245:8080/h264_ulaw.sdp")
     mc = None
     try:
         mc = motors.MotorController(cfg)
