@@ -7,7 +7,7 @@ class Config:
     max_images: int = 10
 
     initial_stream_conf: float = 0.5
-    initial_map_conf: float = 0.5
+    initial_map_conf: float = 0.35
 
     runs_dir: str = "runs"
     scan_trigger_name: str = "SCAN_NOW"
@@ -43,3 +43,12 @@ class Config:
     # Conf params
     scan_max_boost: float = 0.25
     scan_diff_norm: float = 30.0
+
+    #Image feature params
+    lap_ref: float = 1500.0
+    edge_ref: float = 0.12
+    keypoint_ref: float = 250.0
+    sharp_min: float = 0.10
+    edge_min: float = 0.10
+    kp_min: float = 0.05
+    alpha: float = 0.2

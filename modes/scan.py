@@ -4,6 +4,9 @@ from datetime import datetime
 
 from core import beliefs, logger
 from core.perception.metrics import frame_diff_mad
+from core.perception.features import extract_features
+from core.perception.features import is_observation_valid
+import numpy as np
 
 @dataclass
 class ScanRuntime:
@@ -16,6 +19,7 @@ class ScanRuntime:
     pause_sampled: bool = False
     prev_pause_frame = None  # will hold an image frame
     diffs: list[float] = field(default_factory=list)  # novelty per pause
+    stored_repr = None
 
 def enter(state, now_t: float, cfg):
     """
@@ -116,6 +120,37 @@ def step(state, now_t: float, cfg, rotate_fn=None, sample_frame_fn=None):
 
             if ok and frame is not None:
                 # Minimal novelty placeholder for now:
+                features, feature_vector = extract_features(frame, cfg)
+
+                valid, reason = is_observation_valid(features, cfg)
+                if valid:
+                    if rt.stored_repr is None:
+                        rt.stored_repr = feature_vector
+                        logger.log_event(state.log_path, datetime.now(), "scan_repr_init", state, notes='initial representation stored')
+                    else:
+                        e = float(np.mean(np.abs(feature_vector - rt.stored_repr)))
+                        logger.log_event(state.log_path, datetime.now(), "scan_pred_error", state, notes=f"pred error e={e:.3f}")
+                        rt.stored_repr = ((1-cfg.alpha) * rt.stored_repr) + (cfg.alpha * feature_vector)  # update stored repr with smoothing
+                        rt.stored_repr = rt.stored_repr.astype(np.float32, copy=False)
+                        logger.log_event(state.log_path, datetime.now(), "scan_repr_update", state, notes=f"stored_repr updated with alpha={cfg.alpha}")
+                    notes = (
+                            f"episode={rt.episode+1} step={rt.step_index+1}/4 "
+                            f"sharp_raw={features['sharp_raw']:.1f} sharp_q={features['sharp_q']:.2f} | "
+                            f"edge_raw={features['edge_raw']:.4f} edge_q={features['edge_q']:.2f} | "
+                            f"kp_raw={features['kp_raw']:.0f} kp_q={features['kp_q']:.2f} | "
+                            f"valid={valid} reason={reason}"
+                            )
+                    logger.log_event(state.log_path, datetime.now(), "scan_features", state, notes=notes)
+                else:
+                    notes = (
+                            f"episode={rt.episode+1} step={rt.step_index+1}/4 "
+                            f"sharp_raw={features['sharp_raw']:.1f} sharp_q={features['sharp_q']:.2f} | "
+                            f"edge_raw={features['edge_raw']:.4f} edge_q={features['edge_q']:.2f} | "
+                            f"kp_raw={features['kp_raw']:.0f} kp_q={features['kp_q']:.2f} | "
+                            f"valid={valid} reason={reason}"
+                            )
+                    logger.log_event(state.log_path, datetime.now(), "scan_features_invalid", state, notes=notes)
+
                 # first pause sample just initializes prev frame; subsequent samples record a diff entry.
                 if rt.prev_pause_frame is None:
                     diff = 0.0
@@ -203,6 +238,7 @@ def step(state, now_t: float, cfg, rotate_fn=None, sample_frame_fn=None):
             )
 
             # Reset episode-local evidence so next episode is judged on its own
+            rt.stored_repr = None
             rt.pause_sampled = False
             rt.prev_pause_frame = None
             rt.diffs.clear()
