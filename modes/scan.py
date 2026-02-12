@@ -34,6 +34,12 @@ def enter(state, now_t: float, cfg):
 
     logger.log_event(state.log_path, datetime.now(), "scan_enter", state, notes="enter scan mode")
 
+    rt = state.scan_rt
+    rt.pause_sampled = False
+    rt.prev_pause_frame = None
+    rt.diffs.clear()
+
+
 
 def exit(state, now_t: float, cfg):
     """Called when leaving scan mode."""
@@ -156,34 +162,47 @@ def step(state, now_t: float, cfg, rotate_fn=None, sample_frame_fn=None):
         if rt.step_index >= 4:
             # Completed one scan episode (360°)
             rt.step_index = 0
-            rt.episode += 1
+            rt.episode += 1  # now rt.episode is the completed-episode count (1-based)
 
-            # Apply scan boost to map_conf (still hardcoded for now)
-            beliefs.apply_scan_boost(state)
-
+            # ----- Episode evidence stats -----
             if rt.diffs:
                 mean_diff = sum(rt.diffs) / len(rt.diffs)
                 max_diff = max(rt.diffs)
+                n = len(rt.diffs)
             else:
                 mean_diff = 0.0
                 max_diff = 0.0
+                n = 0
+
+            # ----- Evidence-based boost -----
+            q = mean_diff / cfg.scan_diff_norm
+            q = max(0.0, min(1.0, q))  # clamp to [0,1]
+
+            boost = cfg.scan_max_boost * q
+            state.map_conf = min(1.0, state.map_conf + boost)
+
+            logger.log_event(
+                state.log_path, datetime.now(),
+                "scan_boost",
+                state,
+                notes=f"episode={rt.episode} mean_diff={mean_diff:.2f} q={q:.2f} boost={boost:.3f}"
+            )
 
             logger.log_event(
                 state.log_path, datetime.now(),
                 "scan_episode_summary",
                 state,
-                notes=f"episode={rt.episode} mean_diff={mean_diff:.2f} max_diff={max_diff:.2f} samples={len(rt.diffs)}"
+                notes=f"episode={rt.episode} mean_diff={mean_diff:.2f} max_diff={max_diff:.2f} samples={n}"
             )
-
 
             logger.log_event(
                 state.log_path, datetime.now(),
                 "scan_episode_complete",
                 state,
-                notes=f"episode={rt.episode} boost_applied diffs_n={len(rt.diffs)}"
+                notes=f"episode={rt.episode} diffs_n={n}"
             )
 
-            # Recommended: reset episode-local evidence so next episode is judged on its own
+            # Reset episode-local evidence so next episode is judged on its own
             rt.pause_sampled = False
             rt.prev_pause_frame = None
             rt.diffs.clear()
@@ -192,6 +211,7 @@ def step(state, now_t: float, cfg, rotate_fn=None, sample_frame_fn=None):
             if state.map_conf >= cfg.scan_exit_thresh:
                 logger.log_event(state.log_path, datetime.now(), "scan_done", state, notes="recovered after episode")
                 return "observe"
+
 
         # Continue scanning
         rt.phase = "rotate"

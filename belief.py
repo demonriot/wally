@@ -5,7 +5,7 @@ STREAM_INC = 0.01          # gain per successful saved frame (1 fps -> ~0.01/sec
 STREAM_DECAY_RATE = 0.001  # per second
 
 # MAP confidence: "is my world model fresh?"
-MAP_DECAY_RATE = 0.002     # per second (decays even if stream is healthy)
+MAP_DECAY_RATE = 0.005     # per second (decays even if stream is healthy)
 MAP_SCAN_BOOST = 0.25      # boost when an active scan occurs (manual trigger for now)
 
 

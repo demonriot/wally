@@ -7,7 +7,7 @@ class Config:
     max_images: int = 10
 
     initial_stream_conf: float = 0.5
-    initial_map_conf: float = 0.35
+    initial_map_conf: float = 0.5
 
     runs_dir: str = "runs"
     scan_trigger_name: str = "SCAN_NOW"
@@ -39,3 +39,7 @@ class Config:
     diff_resize_w: int = 160
     diff_resize_h: int = 120
     diff_blur_ksize: int = 3
+
+    # Conf params
+    scan_max_boost: float = 0.25
+    scan_diff_norm: float = 30.0
