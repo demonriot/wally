@@ -4,19 +4,33 @@ Wally is an intelligent, autonomous agent designed to monitor an environment usi
 
 ## 🧠 Core Concepts
 
-Wally operates on a **Belief System** driven by two main confidence metrics:
+Wally operates on a **Belief System** driven by two main confidence metrics, modeling **uncertainty** as the inverse of confidence.
 
-1.  **Stream Confidence (`stream_conf`)**:
-    *   *Question*: "Is the camera feed reliable right now?"
-    *   *Behavior*: Increases when frames are successfully captured; decays over time.
+### 1. Uncertainty & Belief Modeling
+The system models uncertainty heuristically rather than probabilistically. It uses two scalar values to represent the agent's current "trust" in its state:
 
-2.  **Map Confidence (`map_conf`)**:
-    *   *Question*: "Is my understanding of the surroundings up-to-date?"
-    *   *Behavior*: Decays continuously. When it drops below a threshold, Wally feels "uncertain" and triggers a **Scan**.
+*   **Stream Confidence (`stream_conf`)**:
+    *   *Concept*: Represents the reliability of the visual sensor data.
+    *   *Logic*: Increases with every valid frame captured; decays linearly over time.
+    *   *Uncertainty*: Low confidence implies high sensor uncertainty, triggering reconnection attempts.
+
+*   **Map Confidence (`map_conf`)**:
+    *   *Concept*: Represents the "freshness" or validity of the agent's mental model of the environment.
+    *   *Logic*: Decays continuously over time (representing the world changing while unobserved). Even if the camera is working, if the agent hasn't looked around recently, this confidence drops.
+    *   *Uncertainty*: Low confidence implies high environmental uncertainty, triggering an active **Scan** to gather new information.
+
+### 2. Perception & Visual Features
+Wally uses a transient feature extraction system to validate observations before they influence belief:
+
+*   **Sharpness**: Uses Laplacian variance to detect blur.
+*   **Structure**: Uses Edge Density (Canny) and Keypoint Density (ORB) to ensure the scene has discernible content.
+*   **Novelty**: Uses Mean Absolute Difference (MAD) to detect changes between frames.
+
+Observations deemed "blurry" or "structureless" are discarded and do not boost confidence.
 
 ## 🔄 Architecture & Flow
 
-The agent operates in a continuous loop, evaluating its state and deciding whether to simply watch or actively investigate.
+The agent operates in a continuous loop, employing a **hysteresis-based** decision policy to switch modes.
 
 ```mermaid
 graph TD
@@ -26,7 +40,9 @@ graph TD
     subgraph "Belief System"
         Loop --> Decay[Apply Confidence Decay]
         Decay --> CheckStream{Read Camera?}
-        CheckStream -- Yes --> BoostStream[Boost Stream Conf]
+        CheckStream -- Yes --> Feat[Extract Features]
+        Feat -- Valid? --> BoostStream[Boost Stream Conf]
+        Feat -- Invalid --> Log[Log Warning]
         CheckStream -- No --> Reconnect[Reconnect Logic]
     end
 
@@ -50,11 +66,14 @@ graph TD
 ## 📂 Project Structure
 
 *   `main.py`: The brain of the operation. Handles the main loop, state management, and orchestration.
-*   `config.py`: Configuration details (RTSP URLs, thresholds, motor pins).
+*   `config.py`: Configuration details (RTSP URLs, thresholds, perception params, motor pins).
 *   `core/`:
-    *   `beliefs.py`: Mathematical logic for confidence decay and boosting.
+    *   `belief.py`: Mathematical logic for confidence decay/boost and uncertainty modeling.
     *   `decision.py`: Policies for switching between modes.
     *   `camera.py`: Robust camera handling with frame buffering and reconnection logic.
+    *   `perception/`:
+        *   `features.py`: Visual feature extraction (Sharpness, Edges, ORB Keypoints).
+        *   `metrics.py`: Frame difference metrics (MAD).
     *   `actuators/motors.py`: Interface for L298N motor driver control.
 *   `modes/`:
     *   `observe.py`: Logic for the passive observation state.
@@ -77,15 +96,20 @@ graph TD
 
 ### Configuration
 
-Edit `config.py` to match your hardware setup:
+Edit `config.py` to match your hardware and environment:
 
 ```python
 # config.py
 rtsp_url = "rtsp://192.168.1.10:8554/stream"  # Your camera source
 
-# Scan Policy
-scan_enter_thresh = 0.30  # Start scanning when map confidence drops below 30%
-scan_exit_thresh = 0.60   # Stop scanning when map confidence recovers to 60%
+# Uncertainty / Scan Policy
+scan_enter_thresh = 0.30  # High Uncertainty -> Start scanning (Map Conf < 30%)
+scan_exit_thresh = 0.60   # Low Uncertainty -> Stop scanning (Map Conf > 60%)
+
+# Perception / Feature Quality
+sharp_min = 0.10      # Minimum sharpness to accept a frame
+edge_min = 0.10       # Minimum edge density
+kp_min = 0.05         # Minimum keypoint density
 ```
 
 ### Running the Agent
