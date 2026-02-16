@@ -15,9 +15,12 @@ The system models uncertainty heuristically rather than probabilistically. It us
     *   *Uncertainty*: Low confidence implies high sensor uncertainty, triggering reconnection attempts.
 
 *   **Map Confidence (`map_conf`)**:
-    *   *Concept*: Represents the "freshness" or validity of the agent's mental model of the environment.
-    *   *Logic*: Decays continuously over time (representing the world changing while unobserved). Even if the camera is working, if the agent hasn't looked around recently, this confidence drops.
-    *   *Uncertainty*: Low confidence implies high environmental uncertainty, triggering an active **Scan** to gather new information.
+    *   *Concept*: Represents the **familiarity** and **stability** of the environment. It models how well the agent's internal representation matches the current observation.
+    *   *Logic*: 
+        *   **Decays** continuously over time (representing uncertainty growing when unobserved).
+        *   **Boosts** when the observed scene matches the agent's stored memory (low feature difference), indicating stability.
+        *   **Drops** when the observed scene differs significantly from memory (high feature difference), indicating novelty or change.
+    *   *Uncertainty*: Low confidence implies high novelty or uncertainty, triggering an active **Scan** to update the internal model.
 
 ### 2. Perception & Visual Features
 Wally uses a transient feature extraction system to validate observations before they influence belief:
