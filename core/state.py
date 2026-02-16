@@ -18,4 +18,5 @@ class AgentState:
     scan_trigger_path: str = ""
     scan_rt : object = None
     motors_enabled: bool = True
+    cooldown_until: float = 0.0
     #last_turn_command_time: float = 0.0

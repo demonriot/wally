@@ -17,9 +17,10 @@ class Config:
     scan_exit_thresh: float = 0.60
     scan_step_degrees: int = 90
     scan_pause_s: float = 1.0
-    scan_max_episodes: int = 2
-    scan_settle_s: float = 0.25
+    scan_max_episodes: int = 4
+    scan_settle_s: float = 0.5
     scan_flush_s: float = 0.25
+    scan_cooldown_s: float = 10.0
 
     # L298N pins (BCM)
     L_IN1: int = 17
@@ -51,4 +52,6 @@ class Config:
     sharp_min: float = 0.10
     edge_min: float = 0.10
     kp_min: float = 0.05
-    alpha: float = 0.2
+    scan_repr_alpha: float = 0.2
+    scan_k_drop: float = 0.10
+    scan_k_gain: float = 0.05

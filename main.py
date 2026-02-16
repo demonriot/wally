@@ -21,7 +21,7 @@ def switch_mode(state, now_t, cfg, new_mode: str, mc):
         if mc:
             mc.stop()
         scan.exit(state, now_t, cfg)
-        
+        state.cooldown_until = now_t + cfg.scan_cooldown_s
 
     old = state.mode
     state.mode = new_mode
@@ -60,6 +60,7 @@ def run(cfg: Config, mc):
     print(f"Logging session started in: {state.run_folder}")
 
     now_t = time.time()
+    state.cooldown_until = now_t + cfg.scan_cooldown_s  # for scan triggering
     observe.enter(state, now_t, cfg)
 
     # always define rotate_fn
@@ -74,8 +75,9 @@ def run(cfg: Config, mc):
             beliefs.apply_continuous_decay(state, dt)
 
             if decision.should_trigger_scan(state):
-                os.remove(state.scan_trigger_path)
-                beliefs.apply_scan_boost(state)
+                if os.path.exists(state.scan_trigger_path):
+                    os.remove(state.scan_trigger_path)
+                
                 logger.log_event(state.log_path, datetime.now(), "scan_triggered", state)
 
             ret, frame = cam.read()
@@ -101,6 +103,9 @@ def run(cfg: Config, mc):
                 )
 
             desired_mode = decision.update_mode(state, cfg)
+            if desired_mode == "scan" and now_t < state.cooldown_until:
+                desired_mode = "observe"
+
             if desired_mode != state.mode:
                 switch_mode(state, now_t, cfg, desired_mode, mc)
 
@@ -121,7 +126,7 @@ def run(cfg: Config, mc):
 
 
 if __name__ == "__main__":
-    cfg = Config(rtsp_url="rtsp://192.168.0.120:8080/h264_ulaw.sdp")
+    cfg = Config(rtsp_url="rtsp://192.168.0.110:8080/h264_ulaw.sdp")
     mc = None
     try:
         mc = motors.MotorController(cfg)
