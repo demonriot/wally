@@ -1,5 +1,12 @@
 from dataclasses import dataclass, field
+from typing import Optional, Dict
 import time
+import numpy as np
+
+
+def _default_memory_bins() -> Dict[int, Optional[np.ndarray]]:
+    return {0: None, 1: None, 2: None, 3: None}
+
 
 @dataclass
 class AgentState:
@@ -16,7 +23,11 @@ class AgentState:
     frame_folder: str = ""
     log_path: str = ""
     scan_trigger_path: str = ""
-    scan_rt : object = None
+
+    scan_rt: object = None
     motors_enabled: bool = True
     cooldown_until: float = 0.0
-    #last_turn_command_time: float = 0.0
+
+    # Long-term directional memory (persistent across runs)
+    memory_bins: Dict[int, Optional[np.ndarray]] = field(default_factory=_default_memory_bins)
+    memory_last_saved_at: float = field(default_factory=time.time)

@@ -47,6 +47,21 @@ def run(cfg: Config, mc):
     state.log_path = log_path
     state.scan_trigger_path = scan_trigger_path
     state.session_start_hms = datetime.now().strftime("%H:%M:%S")
+    # ---- Long-term memory bins (persist across runs) ----
+    mem_path = storage.memory_bins_path(cfg.runs_dir)
+    state.memory_bins = storage.load_memory_bins(mem_path)
+    state.memory_last_saved_at = time.time()
+
+    logger.log_event(
+        state.log_path,
+        datetime.now(),
+        "memory_bins_loaded",
+        state,
+        notes=(
+            f"path={mem_path} "
+            f"init={[1 if state.memory_bins.get(k) is not None else 0 for k in range(4)]}"
+        ),
+    )
 
     logger.log_session_start(state.log_path, state)
 
@@ -69,6 +84,11 @@ def run(cfg: Config, mc):
     try:
         while True:
             now_t = time.time()
+            # ---- Periodically save long-term memory bins ----
+            if now_t - state.memory_last_saved_at >= cfg.memory_save_every_s:
+                storage.save_memory_bins(mem_path, state.memory_bins)
+                state.memory_last_saved_at = now_t
+                logger.log_event(state.log_path, datetime.now(), "memory_bins_saved", state, notes=f"path={mem_path}")
 
             dt = now_t - state.last_update_time
             state.last_update_time = now_t
@@ -103,6 +123,12 @@ def run(cfg: Config, mc):
                 )
 
             desired_mode = decision.update_mode(state, cfg)
+            # If we are scanning and some memory bins are still missing, do not allow leaving scan yet.
+            if state.mode == "scan":
+                bootstrap_needed = any(state.memory_bins.get(k) is None for k in range(4))
+                if bootstrap_needed and desired_mode != "scan":
+                    desired_mode = "scan"
+
             if desired_mode == "scan" and now_t < state.cooldown_until:
                 desired_mode = "observe"
 
@@ -119,6 +145,13 @@ def run(cfg: Config, mc):
     except KeyboardInterrupt:
         print("\nStopping Session...")
     finally:
+        # ---- Save memory on shutdown ----
+        try:
+            storage.save_memory_bins(mem_path, state.memory_bins)
+        except Exception as e:
+            # don't crash shutdown
+            with open(state.log_path, "a") as f:
+                f.write(f"[{datetime.now().strftime('%H:%M:%S')}] WARN: memory_bins save failed: {e}\n")
         logger.log_session_end(state.log_path)
         cam.release()
         if mc is not None:
@@ -126,7 +159,7 @@ def run(cfg: Config, mc):
 
 
 if __name__ == "__main__":
-    cfg = Config(rtsp_url="rtsp://192.168.0.110:8080/h264_ulaw.sdp")
+    cfg = Config(rtsp_url="rtsp://192.168.0.123:8080/h264_ulaw.sdp")
     mc = None
     try:
         mc = motors.MotorController(cfg)

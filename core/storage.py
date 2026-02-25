@@ -1,6 +1,8 @@
+#core/storage.py
 import os
 import glob
 from datetime import datetime
+import numpy as np
 import cv2
 
 def make_run_paths(runs_dir: str):
@@ -23,3 +25,38 @@ def cleanup_old_data(frame_folder: str, max_files: int = 100):
     if len(files) > max_files:
         for f in files[:len(files) - max_files]:
             os.remove(f)
+
+
+
+def memory_bins_path(runs_dir: str) -> str:
+    return os.path.join(runs_dir, "memory_bins.npz")
+
+
+def save_memory_bins(path: str, memory_bins: dict[int, object]) -> None:
+    # memory_bins values are np.ndarray or None
+    np.savez_compressed(
+        path,
+        bin0=memory_bins.get(0),
+        bin1=memory_bins.get(1),
+        bin2=memory_bins.get(2),
+        bin3=memory_bins.get(3),
+    )
+
+
+def load_memory_bins(path: str) -> dict[int, object]:
+    if not os.path.exists(path):
+        return {0: None, 1: None, 2: None, 3: None}
+
+    data = np.load(path, allow_pickle=True)
+
+    # np.savez stores None as a 0-d object array; handle that safely
+    def _get(name: str):
+        if name not in data:
+            return None
+        v = data[name]
+        # If it's a 0-d object array, unwrap it
+        if isinstance(v, np.ndarray) and v.shape == () and v.dtype == object:
+            v = v.item()
+        return v
+
+    return {0: _get("bin0"), 1: _get("bin1"), 2: _get("bin2"), 3: _get("bin3")}

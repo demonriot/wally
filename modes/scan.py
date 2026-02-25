@@ -17,6 +17,9 @@ class ScanRuntime:
 
     pause_sampled: bool = False
     stored_repr: Optional[np.ndarray] = None
+    last_novelty: float = 0.0
+    last_beta: float = 0.0
+    last_mem_upd: int = 0
 
 
 def enter(state, now_t: float, cfg):
@@ -40,9 +43,6 @@ def enter(state, now_t: float, cfg):
     rt = state.scan_rt
     rt.pause_sampled = False
     #rt.stored_repr = None
-
-    
-
 
 
 def exit(state, now_t: float, cfg):
@@ -71,11 +71,22 @@ def step(state, now_t: float, cfg, rotate_fn=None, sample_frame_fn=None):
         rt.phase_started_at = now_t
         rt.pause_sampled = False
         
-
+     # ---- NEW: bootstrap memory? ----
+    bootstrap_needed = any(state.memory_bins.get(k) is None for k in range(4))       
     # If map_conf already recovered, scan is effectively done
+    # If map_conf already recovered, scan can end — but during bootstrap,
+    # force finishing the current 4-step episode so all dirs can be initialized.
     if state.map_conf >= cfg.scan_exit_thresh:
-        logger.log_event(state.log_path, datetime.now(), "scan_done", state, notes="map_conf recovered")
-        return "observe"
+        if not bootstrap_needed:
+            logger.log_event(state.log_path, datetime.now(), "scan_done", state, notes="map_conf recovered")
+            return "observe"
+        else:
+            logger.log_event(
+                state.log_path, datetime.now(),
+                "scan_bootstrap_hold",
+                state,
+                notes="map_conf recovered but bootstrap_needed=1; finishing episode"
+            )
 
     # Failsafe: too many episodes and still low
     if rt.episode >= cfg.scan_max_episodes:
@@ -141,11 +152,44 @@ def step(state, now_t: float, cfg, rotate_fn=None, sample_frame_fn=None):
                     # Valid observation
                     if rt.stored_repr is None:
                         rt.stored_repr = feature_vector.astype(np.float32, copy=False)
+
+                        # ---- NEW: Directional novelty vs long-term memory bin ----
+                        k = rt.step_index
+                        M_k = state.memory_bins.get(k, None)
+
+                        if M_k is None:
+                            novelty_k = 1.0
+                        else:
+                            diff = np.abs(feature_vector - M_k)
+                            w = np.array([0.4, 0.4, 0.2], dtype=np.float32)
+                            novelty_k = float(np.sum(w * diff) / float(np.sum(w)))
+                            novelty_k = max(0.0, min(1.0, novelty_k - cfg.novelty_deadband))
+
+                        novelty_k = max(0.0, min(1.0, novelty_k))
+                        beta = max(cfg.beta_min, novelty_k)
+
+                        # ---- NEW: gated long-term memory integration ----
+                        mem_upd = 0
+                        if M_k is None:
+                            state.memory_bins[k] = feature_vector.astype(np.float32, copy=False)
+                            mem_upd = 1
+                        elif state.map_conf >= cfg.memory_stability_thresh:
+                            state.memory_bins[k] = ((1.0 - beta) * M_k + beta * feature_vector).astype(np.float32, copy=False)
+                            mem_upd = 1
+
+                        rt.last_novelty = novelty_k
+                        rt.last_beta = beta
+                        rt.last_mem_upd = mem_upd
+
                         logger.log_event(
                             state.log_path, datetime.now(),
                             "scan_step_obs",
                             state,
-                            notes=f"episode={ep} step={st}/4 valid=1 init=1"
+                            notes=(
+                                f"episode={ep} step={st}/4 valid=1 init=1 "
+                                f"dir={k} novelty={novelty_k:.3f} beta={beta:.3f} mem_upd={mem_upd} "
+                                f"sharp_q={features['sharp_q']:.2f} edge_q={features['edge_q']:.2f} kp_q={features['kp_q']:.2f}"
+                            )
                         )
                     else:
                         # Prediction error (0..1-ish since features are normalized)
@@ -163,16 +207,51 @@ def step(state, now_t: float, cfg, rotate_fn=None, sample_frame_fn=None):
                         state.map_conf = max(0.0, min(1.0, state.map_conf))
                         after = float(state.map_conf)
 
+                        # ---- NEW: Directional novelty vs long-term memory bin ----
+                        k = rt.step_index  # 0..3 direction bin aligned with scan steps
+
+                        M_k = state.memory_bins.get(k, None)
+                        if M_k is None:
+                            novelty_k = 1.0
+                        else:
+                            diff = np.abs(feature_vector - M_k)
+                            w = np.array([0.4, 0.4, 0.2], dtype=np.float32)
+                            novelty_k = float(np.sum(w * diff) / float(np.sum(w)))
+                            novelty_k = max(0.0, min(1.0, novelty_k - cfg.novelty_deadband))
+
+                        # clamp to [0,1]
+                        novelty_k = max(0.0, min(1.0, novelty_k))
+                        beta = max(cfg.beta_min, novelty_k)  # choice B: novelty-weighted integration
+
+                       # ---- NEW: gated long-term memory integration ----
+                        mem_upd = 0
+                        if M_k is None:
+                            # bootstrap: always initialize missing bins (no stability gate)
+                            state.memory_bins[k] = feature_vector.astype(np.float32, copy=False)
+                            mem_upd = 1
+                        elif state.map_conf >= cfg.memory_stability_thresh:
+                            # stable: integrate proportionally to novelty
+                            state.memory_bins[k] = ((1.0 - beta) * M_k + beta * feature_vector).astype(np.float32, copy=False)
+                            mem_upd = 1
+
+                        # optional: stash for debugging
+                        rt.last_novelty = novelty_k
+                        rt.last_beta = beta
+                        rt.last_mem_upd = mem_upd
+
                         logger.log_event(
-                            state.log_path, datetime.now(),
-                            "scan_step_obs",
-                            state,
-                            notes=(
-                                f"episode={ep} step={st}/4 valid=1 "
-                                f"e={e:.3f} alpha={alpha:.2f} "
-                                f"map_conf={before:.3f}->{after:.3f}"
-                            )
+                        state.log_path, datetime.now(),
+                        "scan_step_obs",
+                        state,
+                        notes=(
+                            f"episode={ep} step={st}/4 valid=1 "
+                            f"e={e:.3f} alpha={alpha:.2f} "
+                            f"map_conf={before:.3f}->{after:.3f} "
+                            f"dir={k} novelty={novelty_k:.3f} beta={beta:.3f} mem_upd={mem_upd} "
+                            f"sharp_q={features['sharp_q']:.2f} edge_q={features['edge_q']:.2f} kp_q={features['kp_q']:.2f}"
+
                         )
+                    )
 
             else:
                 logger.log_event(
@@ -202,7 +281,7 @@ def step(state, now_t: float, cfg, rotate_fn=None, sample_frame_fn=None):
             
 
             # After boosting, if recovered, exit
-            if state.map_conf >= cfg.scan_exit_thresh:
+            if state.map_conf >= cfg.scan_exit_thresh and not bootstrap_needed:
                 logger.log_event(state.log_path, datetime.now(), "scan_done", state, notes="recovered after episode")
                 return "observe"
 
