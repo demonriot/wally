@@ -61,3 +61,38 @@ class Config:
     memory_save_every_s: float = 5.0
     novelty_deadband: float = 0.10
     beta_min: float = 0.04
+
+    # reliability weights
+    rel_w_sharp = 0.45
+    rel_w_histo = 0.20
+    rel_w_temp  = 0.35
+
+    # hard veto thresholds
+    veto_sharp_min = 0.08
+    veto_mean_min = 20.0
+    veto_mean_max = 235.0
+
+    # soft sharpness mapping
+    sharp_low = 0.12
+    sharp_high = 0.45
+
+    # histogram / exposure sanity
+    hist_mean_low = 45.0
+    hist_mean_high = 210.0
+    hist_std_low = 18.0
+    hist_std_high = 70.0
+
+    # temporal plausibility
+    temp_dev_good = 0.08
+    temp_dev_bad = 0.30
+
+    # final reliability label thresholds
+    rel_reject_thresh = 0.30
+    rel_suspect_thresh = 0.65
+
+    # suspect frames should barely matter
+    suspect_influence = 0.05
+
+    # recent feature history
+    recent_feature_window = 5
+

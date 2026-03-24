@@ -159,7 +159,7 @@ def run(cfg: Config, mc):
 
 
 if __name__ == "__main__":
-    cfg = Config(rtsp_url="rtsp://192.168.0.123:8080/h264_ulaw.sdp")
+    cfg = Config(rtsp_url="rtsp://192.168.0.114:8080/h264_ulaw.sdp")
     mc = None
     try:
         mc = motors.MotorController(cfg)

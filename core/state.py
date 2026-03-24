@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 import time
 import numpy as np
 
@@ -31,3 +31,5 @@ class AgentState:
     # Long-term directional memory (persistent across runs)
     memory_bins: Dict[int, Optional[np.ndarray]] = field(default_factory=_default_memory_bins)
     memory_last_saved_at: float = field(default_factory=time.time)
+
+    recent_feature_vectors: List[np.ndarray] = field(default_factory=list)
